@@ -47,6 +47,8 @@ def _write_sacpz(inventory, file_or_file_object):
             for cha in sta:
                 resp = cha.response
                 sens = resp.instrument_sensitivity
+                if sens is None:
+                    continue
                 paz = resp.get_paz()
                 input_unit = sens.input_units.upper()
                 if input_unit == "M":
