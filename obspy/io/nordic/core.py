@@ -247,6 +247,31 @@ def _nortoevmag(mag_type):
     return mag
 
 
+def _get_evtype_explosion(event, default_evtype="L", default_explosion=False):
+    """evaluate evtype from event as stored by _read_origin
+
+    :type event: ~obspy.core.event.event.Event
+    :param event: event to read
+    :type default_evtype: str, 1 letter
+    :param default_evtype: value of evtype to return if not found in event.event_descriptions
+    :type default_explosion:  bool
+    :param default_explosion: value of explosion to return if not found in event.event_descriptions
+    :return: evtype, explosion
+    """
+
+    evtype, explosion = default_evtype, default_explosion
+
+    for description in event.event_descriptions:
+        if description.text.startswith('evtype:'):
+            evtype = description.text.split('evtype:')[-1]
+            if evtype not in ['L', 'R', 'D']:
+                raise NordicParsingError('Event type must be either L, R or D')
+        elif description.text.startswith('explosion:'):
+            explosion = description.text.split('explosion:')[-1] == "True"
+
+    return evtype, explosion
+
+
 def readheader(sfile, encoding='latin-1'):
     """
     Read header information from a seisan nordic format S-file.
@@ -340,7 +365,9 @@ def _read_origin(line):
     except Exception:
         raise NordicParsingError("Couldn't read a date from sfile")
     # new_event.loc_mod_ind=line[20]
-    new_event.event_descriptions.append(EventDescription(text=line[21:23]))
+    # new_event.event_descriptions.append(EventDescription(text=line[21:23]))
+    new_event.event_descriptions.append(EventDescription(text="evtype:{}".format(line[21])))
+    new_event.event_descriptions.append(EventDescription(text="explosion:{}".format(str(line[22]=="E"))))
     for key, _slice in [('latitude', slice(23, 30)),
                         ('longitude', slice(30, 38)),
                         ('depth', slice(38, 43))]:
@@ -952,7 +979,7 @@ def blanksfile(wavefile, evtype, userid, overwrite=False, evtime=None):
     return sfile
 
 
-def write_select(catalog, filename, userid='OBSP', evtype='L',
+def write_select(catalog, filename, userid='OBSP', default_evtype='L', default_explosion=False,
                  wavefiles=None):
     """
     Function to write a catalog to a select file in nordic format.
@@ -963,22 +990,32 @@ def write_select(catalog, filename, userid='OBSP', evtype='L',
     :param filename: Path to write to
     :type userid: str
     :param userid: Up to 4 character user ID
-    :type evtype: str
-    :param evtype:
+    :type default_evtype: str
+    :param default_evtype:
         Single character string to describe the event, either L, R or D.
+        used only if the field doesn't exists in event.event_descriptions
+    :type default_explosion: bool
+    :param default_explosion:
+        Whether the event is an explosion,
+        used only if the field doesn't exists in event.event_descriptions
     :type wavefiles: list
     :param wavefiles:
         Waveforms to associate the events with, must be ordered in the same
          way as the events in the catalog.
     """
+
     if not wavefiles:
         wavefiles = ['DUMMY' for _i in range(len(catalog))]
     with open(filename, 'w') as fout:
         for event, wavfile in zip(catalog, wavefiles):
             select = io.StringIO()
+            evtype, explosion = _get_evtype_explosion(event,
+                                                      default_evtype=default_evtype,
+                                                      default_explosion=default_explosion)
+
             _write_nordic(event=event, filename=None, userid=userid,
-                          evtype=evtype, wavefiles=wavfile,
-                          string_io=select)
+                          evtype=evtype, explosion=explosion,
+                          wavefiles=wavfile, string_io=select)
             select.seek(0)
             for line in select:
                 fout.write(line)
