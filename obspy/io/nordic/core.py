@@ -248,7 +248,7 @@ def _nortoevmag(mag_type):
 
 
 def _get_evtype_explosion(event, default_evtype="L", default_explosion=False):
-    """evaluate evtype from event as stored by _read_origin
+    """evaluate evtype (L, R or D) and explosion state from event as stored by _read_origin
 
     :type event: ~obspy.core.event.event.Event
     :param event: event to read
@@ -266,8 +266,10 @@ def _get_evtype_explosion(event, default_evtype="L", default_explosion=False):
             evtype = description.text.split('evtype:')[-1]
             if evtype not in ['L', 'R', 'D']:
                 raise NordicParsingError('Event type must be either L, R or D')
-        elif description.text.startswith('explosion:'):
-            explosion = description.text.split('explosion:')[-1] == "True"
+            break
+
+    if event.event_type:
+        explosion = "explosion" in event.event_type.lower()
 
     return evtype, explosion
 
@@ -367,7 +369,8 @@ def _read_origin(line):
     # new_event.loc_mod_ind=line[20]
     # new_event.event_descriptions.append(EventDescription(text=line[21:23]))
     new_event.event_descriptions.append(EventDescription(text="evtype:{}".format(line[21])))
-    new_event.event_descriptions.append(EventDescription(text="explosion:{}".format(str(line[22]=="E"))))
+    if line[22] == "E":
+        new_event.event_type = "explosion"
     for key, _slice in [('latitude', slice(23, 30)),
                         ('longitude', slice(30, 38)),
                         ('depth', slice(38, 43))]:
@@ -596,6 +599,7 @@ def _extract_event(event_str, catalog, wav_names, return_wavnames=False):
         tmp_sfile.write(event_line)
     tagged_lines = _get_line_tags(f=tmp_sfile)
     new_event = _readheader(head_lines=tagged_lines['1'])
+    new_event = _read_comment(tagged_lines, new_event)
     new_event = _read_uncertainty(tagged_lines, new_event)
     new_event = _read_focal_mechanisms(tagged_lines, new_event)
     new_event = _read_moment_tensors(tagged_lines, new_event)
@@ -604,6 +608,17 @@ def _extract_event(event_str, catalog, wav_names, return_wavnames=False):
     new_event = _read_picks(tagged_lines=tagged_lines, new_event=new_event)
     catalog += new_event
     return catalog, wav_names
+
+
+def _read_comment(tagged_lines, event):
+    """
+    Read comment line (type 3)
+    """
+    if '3' not in tagged_lines.keys():
+        return event
+    line = tagged_lines['3'][0][0].rstrip().rstrip('3').strip()
+    event.comments.append(Comment(text=line))
+    return event
 
 
 def _read_uncertainty(tagged_lines, event):
@@ -1189,6 +1204,12 @@ def _write_nordic(event, filename, userid='OBSP', evtype='L', outdir='.',
         sfile = open(sfile_path, 'w')
     else:
         sfile = string_io
+    # get comments
+    comments = []
+    if len(event.comments) > 0:
+        for comment in event.comments:
+            if len(comment.text.strip()):
+                comments.append(comment.text)
     sfile.write(
         " {0} {1}{2} {3}{4} {5}.{6} {7}{8}{9}{10}  {11}{12}{13}{14}{15}{16}"
         "{17}{18}{19}{20}{21}{22}1\n".format(
@@ -1218,6 +1239,10 @@ def _write_nordic(event, filename, userid='OBSP', evtype='L', outdir='.',
                 conv_mags[4]['agency'][0:3].rjust(3),
                 conv_mags[5]['mag'].rjust(4), conv_mags[5]['type'].rjust(1),
                 conv_mags[5]['agency'][0:3].rjust(3)))
+    # Write comment line
+    for comment in comments:
+        sfile.write(
+            " {0:<78s}3\n".format(comment))
     # Write hyp error line
     try:
         sfile.write(_write_hyp_error_line(origin) + '\n')
