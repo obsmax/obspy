@@ -1216,7 +1216,9 @@ def _write_nordic(event, filename, userid='OBSP', evtype='L', outdir='.',
         "{17}{18}{19}{20}{21}{22}1\n".format(
             evtime.year, str(evtime.month).rjust(2), str(evtime.day).rjust(2),
             str(evtime.hour).rjust(2), str(evtime.minute).rjust(2),
-            str(evtime.second).rjust(2), str(evtime.microsecond).ljust(1)[0:1],
+            str(evtime.second).rjust(2),
+            # str(evtime.microsecond).ljust(1)[0:1], NO THIS IS A TRUNCATURE
+            str(round(evtime.microsecond / 1.e5)).ljust(1)[0:1],
             evtype.ljust(2), lat.rjust(7), lon.rjust(8), depth.rjust(5),
             agency.rjust(3)[0:3], ksta.rjust(3), timerms.rjust(4),
             conv_mags[0]['mag'].rjust(4), conv_mags[0]['type'].rjust(1),
@@ -1232,7 +1234,9 @@ def _write_nordic(event, filename, userid='OBSP', evtype='L', outdir='.',
                 evtime.year, str(evtime.month).rjust(2),
                 str(evtime.day).rjust(2), str(evtime.hour).rjust(2),
                 str(evtime.minute).rjust(2), str(evtime.second).rjust(2),
-                str(evtime.microsecond).ljust(1)[0:1], evtype.ljust(2),
+                # str(evtime.microsecond).ljust(1)[0:1], NO THIS IS A TRUNCATURE
+                str(round(evtime.microsecond / 1.e5)).ljust(1)[0:1],
+                evtype.ljust(2),
                 agency.rjust(3)[0:3],
                 conv_mags[3]['mag'].rjust(4), conv_mags[3]['type'].rjust(1),
                 conv_mags[3]['agency'][0:3].rjust(3),
@@ -1590,8 +1594,8 @@ def nordpick(event):
                 _str_conv(weight).rjust(1), eval_mode, polarity.rjust(1),
                 str(pick.time.hour).rjust(2), str(pick.time.minute).rjust(2),
                 str(pick.time.second).rjust(3),
-                str(float(pick.time.microsecond) /
-                    (10 ** 4)).split('.')[0].zfill(2),
+                #str(float(pick.time.microsecond) / (10 ** 4)).split('.')[0].zfill(2), # NO THIS IS A TRUCATURE
+                str(round(pick.time.microsecond / 1.e4)).split('.')[0].zfill(2),
                 _str_conv(coda).rjust(5)[0:5],
                 _str_conv(amp, rounded=1).rjust(7)[0:7],
                 _str_conv(peri, rounded=peri_round).rjust(5),
