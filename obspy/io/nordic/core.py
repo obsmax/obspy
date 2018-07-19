@@ -24,6 +24,7 @@ from collections import defaultdict
 import datetime
 import os
 import io
+import numpy as np
 
 from obspy import UTCDateTime, read
 from obspy.geodetics import kilometers2degrees, degrees2kilometers
@@ -1424,6 +1425,9 @@ def nordpick(event):
         not supported.
     """
     pick_strings = []
+    origin = event.preferred_origin() or event.origins[0] # determine that only once
+    origin_arrival_pick_ids = np.asarray([arrival.pick_id.id for arrival in origin.arrivals], str) # store that once for all
+
     for pick in event.picks:
         if not pick.waveform_id:
             msg = ('No waveform id for pick at time %s, skipping' % pick.time)
@@ -1459,9 +1463,14 @@ def nordpick(event):
         # Extract the correct arrival info for this pick - assuming only one
         # arrival per pick...
         try:
-            origin = event.preferred_origin() or event.origins[0]
-            arrival = [arrival for arrival in origin.arrivals
-                       if arrival.pick_id == pick.resource_id]
+            # original version : fucking slow
+            # origin = event.preferred_origin() or event.origins[0]
+            # arrival = [arrival for arrival in origin.arrivals
+            #          if arrival.pick_id == pick.resource_id]
+
+            I = origin_arrival_pick_ids == pick.resource_id.id
+            arrival = [origin.arrivals[i] for i in np.arange(len(I))[I]]
+
         except IndexError:
             arrival = []
         if len(arrival) > 0:
